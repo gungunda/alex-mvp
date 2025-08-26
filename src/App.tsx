@@ -1,23 +1,57 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import NavBar from "./components/NavBar";
-import { PlannerProvider } from "./store/PlannerContext";
-import Dashboard from "./pages/Dashboard";
-import Offload from "./pages/Offload";
-import WeekTemplate from "./pages/WeekTemplate";
+import React, { useEffect, useState } from 'react';
+import { WeekTemplate, ProgressByDate, OverridesByDate } from './types';
+import { uuid } from './utils';
+import LS, { loadJSON, saveJSON } from './storage';
+import Dashboard from './pages/Dashboard';
+import Templates from './pages/Templates';
+
+const seedWeek: WeekTemplate = {
+  1: [ { id: uuid(), title: "Алгебра", minutes: 90 }, { id: uuid(), title: "Английский", minutes: 60 } ],
+  2: [ { id: uuid(), title: "Геометрия", minutes: 240 }, { id: uuid(), title: "Робототехника (кружок)", minutes: 120 } ],
+  3: [ { id: uuid(), title: "Литература", minutes: 60 } ],
+  4: [ { id: uuid(), title: "История", minutes: 60 }, { id: uuid(), title: "Физика", minutes: 90 } ],
+  5: [ { id: uuid(), title: "Химия", minutes: 90 } ],
+  6: [ { id: uuid(), title: "Спортсекция", minutes: 60 } ],
+  0: [],
+};
 
 export default function App(){
+  const [page, setPage] = useState<'dashboard'|'templates'>(() => loadJSON(LS.UI,{page:'dashboard' as const}).page);
+  useEffect(()=>saveJSON(LS.UI,{page}),[page]);
+
+  const [weekTemplate, setWeekTemplate] = useState<WeekTemplate>(()=>loadJSON(LS.WEEK, seedWeek));
+  const [overrides, setOverrides] = useState<OverridesByDate>(()=>loadJSON(LS.OVERRIDES, {}));
+  const [progressByDate, setProgressByDate] = useState<ProgressByDate>(()=>loadJSON(LS.PROGRESS, {}));
+  const [startedAtByDate, setStartedAtByDate] = useState<Record<string, number>>(()=>loadJSON(LS.STARTED, {}));
+
+  useEffect(()=>saveJSON(LS.WEEK, weekTemplate),[weekTemplate]);
+
+  const Nav = (
+    <div className="appbar">
+      <div className="appbar-inner">
+        <div className="brand"><span className="brand-badge">ST</span> Study Planner</div>
+        <div className="tabs" role="tablist">
+          <button className="tab" aria-current={page==='dashboard'?'page':undefined} onClick={()=>setPage('dashboard')}>Dashboard</button>
+          <button className="tab" aria-current={page==='templates'?'page':undefined} onClick={()=>setPage('templates')}>Правка расписания</button>
+        </div>
+        <div className="header-actions"></div>
+      </div>
+    </div>
+  );
+
   return (
-    <PlannerProvider>
-      <NavBar />
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/offload" element={<Offload />} />
-        <Route path="/week" element={<WeekTemplate />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-      <footer className="text-center text-muted py-6">Study Planner · локальное сохранение · {new Date().getFullYear()}</footer>
-    </PlannerProvider>
+    <div>
+      {Nav}
+      {page==='dashboard' && (
+        <Dashboard weekTemplate={weekTemplate} setWeekTemplate={setWeekTemplate}
+          overrides={overrides} setOverrides={setOverrides}
+          progressByDate={progressByDate} setProgressByDate={setProgressByDate}
+          startedAtByDate={startedAtByDate} setStartedAtByDate={setStartedAtByDate} />
+      )}
+      {page==='templates' && (
+        <Templates weekTemplate={weekTemplate} setWeekTemplate={setWeekTemplate} />
+      )}
+      <div className="footer">Study Planner · локальное сохранение · {new Date().getFullYear()}</div>
+    </div>
   );
 }
