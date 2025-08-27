@@ -29,27 +29,60 @@ export default function App(){
 
   useEffect(()=>saveJSON(LS.WEEK, weekTemplate),[weekTemplate]);
 
+  const goToday = () => {
+    const k = toDateKey(new Date());
+    setDateKey(k);
+    setPage('dashboard'); // всегда переходим на дашборд
+  };
+
+  const onPickDate = (v: string) => {
+    setDateKey(v);
+    setPage('dashboard'); // выбранная дата — открываем дашборд
+  };
+
   const Nav = (
     <div className="appbar">
       <div className="appbar-inner">
-        <div className="brand"><span className="brand-badge">ST</span> Study Planner</div>
-        <div className="tabs" role="tablist">
-          <button className="tab" aria-current={page==='dashboard'?'page':undefined} onClick={()=>setPage('dashboard')}>Dashboard</button>
-          <button className="tab" aria-current={page==='templates'?'page':undefined} onClick={()=>setPage('templates')}>Правка расписания</button>
+        <div className="brand">
+          <span className="brand-badge">ST</span> Study Planner
         </div>
-        <div className="header-actions">
-          {/* ВЫБОР ДАТЫ + КНОПКА «СЕГОДНЯ» */}
+
+        {/* три элемента подряд: Расписание → календарь → Сегодня */}
+        <div className="tabs" role="tablist" style={{ alignItems: 'center' }}>
+          {/* 1) Ссылка на страницу расписания */}
+          <button
+            className="tab"
+            aria-current={page === 'templates' ? 'page' : undefined}
+            onClick={() => setPage('templates')}
+            title="Правка расписания"
+          >
+            Расписание
+          </button>
+
+          {/* 2) Календарик: выбор даты всегда открывает Дашборд на выбранную дату */}
           <input
             className="input"
             type="date"
             value={dateKey}
-            onChange={e=>setDateKey((e.target as HTMLInputElement).value)}
+            onChange={(e) => onPickDate((e.target as HTMLInputElement).value)}
+            title="Выбрать дату для дашборда"
+            style={{ marginLeft: 8 }}
           />
-          <button className="button ghost" onClick={()=>setDateKey(toDateKey(new Date()))}>Сегодня</button>
+
+          {/* 3) Сегодня: открывает Дашборд на сегодняшнюю дату */}
+          <button
+            className="tab"
+            onClick={goToday}
+            title="Перейти к сегодняшнему дню"
+            style={{ marginLeft: 8 }}
+          >
+            Сегодня
+          </button>
         </div>
       </div>
     </div>
   );
+
 
   return (
     <div>

@@ -55,7 +55,7 @@ export default function Templates({ weekTemplate, setWeekTemplate }:{ weekTempla
   return (
     <div className="container">
       <div className="h1">Правка расписания</div>
-      <div className="kicker">Сумма в заголовке — сколько ЗАДАНО в этот день. В модалке разгрузки видно нагрузку на ДЕЛАТЬ (сдвиг -1). Нажми ✏️ для редактирования.</div>
+      <div className="kicker">Сумма времени в заголовке — сколько ЗАДАНО на этот день. При выборе разгрузки будет видно сколько нужно ДЕЛАТЬ в указанный день. Нажми ✏️ для редактирования.</div>
 
       <div className="grid" style={{ gap:18, marginTop:16 }}>
         {Array.from({length:7},(_,day)=>day).map(day=>{
