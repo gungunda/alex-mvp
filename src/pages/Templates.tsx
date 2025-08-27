@@ -7,33 +7,39 @@ import OffloadDaysGrid from '../components/OffloadDaysGrid';
 import LS, { saveJSON } from '../storage';
 
 export default function Templates({ weekTemplate, setWeekTemplate }:{ weekTemplate:WeekTemplate; setWeekTemplate:(u:WeekTemplate)=>void; }){
-  const daySumsRaw = useMemo(()=> Array.from({length:7},(_,d)=> (weekTemplate[(d+1)%7]||[]).reduce((s,t)=>s+(t.minutes||0),0)), [weekTemplate]); // сколько ДЕЛАТЬ в день d
-  const avg = useMemo(()=> daySumsRaw.reduce((a,b)=>a+b,0) / 7, [daySumsRaw]);
-  const sumClass = (sum:number)=>{
+  const daySumsAssigned = useMemo(()=> Array.from({length:7},(_,d)=> (weekTemplate[d]||[]).reduce((s,t)=>s+(t.minutes||0),0)), [weekTemplate]);
+  const avgAssigned = useMemo(()=> daySumsAssigned.reduce((a,b)=>a+b,0) / (daySumsAssigned.length||1), [daySumsAssigned]);
+  const sumClassAssigned = (sum:number, avg:number)=>{
     if (avg<=0) return {class:"", label:fmtMinutesLong(sum)};
-    if (sum < 0.7*avg) return {class:"sum-green", label:fmtMinutesLong(sum)};
-    if (sum > 1.2*avg) return {class:"sum-red", label:fmtMinutesLong(sum)};
+    if (sum < 0.5*avg) return {class:"sum-green", label:fmtMinutesLong(sum)};
+    if (sum > avg) return {class:"sum-red", label:fmtMinutesLong(sum)};
     return {class:"sum-warn", label:fmtMinutesLong(sum)};
   };
+  const daySumsDoing = useMemo(()=> Array.from({length:7},(_,d)=> daySumsAssigned[(d+1)%7]), [daySumsAssigned]);
+  const avgDoing = useMemo(()=> daySumsDoing.reduce((a,b)=>a+b,0) / (daySumsDoing.length||1), [daySumsDoing]);
 
-  const [timeEdit, setTimeEdit] = useState<{ open:boolean; day:number|null; taskId:string|null; h:number; m:number; }>({
-    open:false, day:null, taskId:null, h:0, m:0
+  const [templateEdit, setTemplateEdit] = useState<{ open:boolean; day:number|null; taskId:string|null; title:string; h:number; m:number; offloadDays:number[] }>({
+    open:false, day:null, taskId:null, title:"", h:1, m:0, offloadDays:[]
   });
-  const openTimeEditTemplate=(day:number,t:Task)=>{ const h=Math.floor(t.minutes/60); const m=t.minutes%60; setTimeEdit({ open:true, day, taskId:t.id, h, m: Math.round(m/10)*10 }); };
-  const closeTimeEdit=()=>setTimeEdit(s=>({...s,open:false}));
-  const applyTimeEdit=()=>{
-    if(timeEdit.day==null || !timeEdit.taskId) return closeTimeEdit();
-    const total = timeEdit.h*60 + timeEdit.m;
-    setWeekTemplate(prev=>({ ...prev, [timeEdit.day!]: (prev[timeEdit.day!]||[]).map(x=>x.id===timeEdit.taskId?{...x,minutes:total}:x) }));
-    closeTimeEdit();
+  const openTemplateEdit=(day:number,t:Task)=> setTemplateEdit({
+    open:true, day, taskId:t.id, title:t.title, h:Math.floor(t.minutes/60), m:Math.round((t.minutes%60)/10)*10, offloadDays:[...(t.offloadDays??[])]
+  });
+  const closeTemplateEdit=()=>setTemplateEdit(s=>({...s,open:false}));
+  const saveTemplateEdit=()=>{
+    if(templateEdit.day==null || !templateEdit.taskId) return closeTemplateEdit();
+    const minutes = templateEdit.h*60 + templateEdit.m;
+    setWeekTemplate(prev=>({ ...prev, [templateEdit.day!]: (prev[templateEdit.day!]||[]).map(x=>x.id===templateEdit.taskId?{...x,title:templateEdit.title.trim()||x.title, minutes, offloadDays:[...templateEdit.offloadDays]}:x) }));
+    closeTemplateEdit();
+  };
+  const deleteTemplateTask=()=>{
+    if(templateEdit.day==null || !templateEdit.taskId) return closeTemplateEdit();
+    setWeekTemplate(prev=>({ ...prev, [templateEdit.day!]: (prev[templateEdit.day!]||[]).filter(x=>x.id!==templateEdit.taskId) }));
+    closeTemplateEdit();
   };
 
-  const [offloadEdit, setOffloadEdit] = useState<{ open:boolean; day:number|null; taskId:string|null; days:number[] }>({ open:false, day:null, taskId:null, days:[] });
-  const openOffloadEdit=(day:number,t:Task)=> setOffloadEdit({ open:true, day, taskId:t.id, days:[...(t.offloadDays??[])] });
-  const closeOffloadEdit=()=>setOffloadEdit(s=>({...s,open:false}));
-  const applyOffloadEdit=()=>{ if(offloadEdit.day==null || !offloadEdit.taskId) return closeOffloadEdit(); setWeekTemplate(prev=>({ ...prev, [offloadEdit.day!]: (prev[offloadEdit.day!]||[]).map(x=>x.id===offloadEdit.taskId?{...x,offloadDays:[...offloadEdit.days]}:x) })); closeOffloadEdit(); };
-
-  const [addModal, setAddModal] = useState<{ open:boolean; day:number|null; title:string; h:number; m:number; offloadDays:number[] }>({ open:false, day:null, title:"", h:1, m:0, offloadDays:[] });
+  const [addModal, setAddModal] = useState<{ open:boolean; day:number|null; title:string; h:number; m:number; offloadDays:number[] }>({
+    open:false, day:null, title:"", h:1, m:0, offloadDays:[]
+  });
   const openAdd=(day:number)=> setAddModal({ open:true, day, title:"", h:1, m:0, offloadDays:[] });
   const closeAdd=()=> setAddModal(s=>({...s,open:false}));
   const applyAdd=()=>{
@@ -49,19 +55,19 @@ export default function Templates({ weekTemplate, setWeekTemplate }:{ weekTempla
   return (
     <div className="container">
       <div className="h1">Правка расписания</div>
-      <div className="kicker">⌚ — изменить время; 🗓️ — дни разгрузки; 🗑️ — удалить; ➕ — добавить предмет. Цвет суммы у дня — по загруженности (зел/жёлт/красн).</div>
+      <div className="kicker">Сумма в заголовке — сколько ЗАДАНО в этот день. В модалке разгрузки видно нагрузку на ДЕЛАТЬ (сдвиг -1). Нажми ✏️ для редактирования.</div>
 
       <div className="grid" style={{ gap:18, marginTop:16 }}>
         {Array.from({length:7},(_,day)=>day).map(day=>{
           const list = weekTemplate[day] || [];
-          const doSum = daySumsRaw[day]; // сколько делать в этот день (назначено на следующий)
-          const sumInfo = sumClass(doSum);
+          const sumAssigned = daySumsAssigned[day];
+          const sumInfo = sumClassAssigned(sumAssigned, avgAssigned);
           return (
             <div className="card" key={day}>
               <div className="card-body">
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <div className="h2">{weekdayRu[day]}</div>
-                  <div className={`sum-strong ${sumInfo.class}`} style={{ fontWeight:900 }}>{sumInfo.label}</div>
+                  <div className={`sum-strong ${sumInfo.class}`}>{sumInfo.label}</div>
                 </div>
 
                 <div className="grid" style={{ gap:10, marginTop:10 }}>
@@ -69,9 +75,8 @@ export default function Templates({ weekTemplate, setWeekTemplate }:{ weekTempla
                     <div className="card" key={t.id} style={{ background:"#0e1531" }}>
                       <div className="card-body" style={{ display:"flex", gap:12, justifyContent:"space-between", alignItems:"center", flexWrap:"wrap" }}>
                         <div style={{flex:1, minWidth:220, fontWeight:700}}>{t.title}</div>
-                        <div className="small" title="План времени">{fmtHM(t.minutes)}</div>
-                        <button className="icon-btn" onClick={()=>openTimeEditTemplate(day,t)} aria-label="Время" title="Изменить время">⌚</button>
-                        <button className="icon-btn" onClick={()=>openOffloadEdit(day,t)} aria-label="Дни разгрузки" title="Дни разгрузки">🗓️</button>
+                        <div className="small">{fmtHM(t.minutes)}</div>
+                        <button className="icon-btn" onClick={()=>openTemplateEdit(day,t)} title="Править">✏️</button>
                         <button className="icon-btn" onClick={()=>setWeekTemplate(prev=>({ ...prev, [day]:(prev[day]||[]).filter(x=>x.id!==t.id) }))} aria-label="Удалить предмет" title="Удалить предмет">🗑️</button>
                       </div>
                     </div>
@@ -87,12 +92,23 @@ export default function Templates({ weekTemplate, setWeekTemplate }:{ weekTempla
         })}
       </div>
 
-      <Modal open={timeEdit.open} title="Выбор времени" onClose={closeTimeEdit} onOk={applyTimeEdit}>
-        <TimePicker h={timeEdit.h} m={timeEdit.m} onChange={(h,m)=>setTimeEdit(s=>({...s,h,m}))} />
-      </Modal>
-
-      <Modal open={offloadEdit.open} title="Дни разгрузки" onClose={closeOffloadEdit} onOk={applyOffloadEdit}>
-        <OffloadDaysGrid value={offloadEdit.days} onChange={days=>setOffloadEdit(s=>({...s,days}))} daySums={daySumsRaw} avg={avg} disableDay={offloadEdit.day!==null ? (offloadEdit.day + 6) % 7 : null} />
+      <Modal open={templateEdit.open} title="Правка предмета" onClose={closeTemplateEdit}>
+        <div style={{ display:"grid", gap:12 }}>
+          <label className="small">Название</label>
+          <input className="input" value={templateEdit.title} onChange={e=>setTemplateEdit(s=>({...s,title:e.target.value}))} />
+          <label className="small">Время</label>
+          <TimePicker h={templateEdit.h} m={templateEdit.m} onChange={(h,m)=>setTemplateEdit(s=>({...s,h,m}))} />
+          <label className="small">Дни разгрузки (нагрузка «делать»)</label>
+          <OffloadDaysGrid value={templateEdit.offloadDays} onChange={days=>setTemplateEdit(s=>({...s,offloadDays:days}))}
+            daySumsDoing={daySumsDoing} avgDoing={avgDoing} disabledDay={templateEdit.day!==null ? (templateEdit.day + 6) % 7 : undefined} />
+          <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
+            <button className="button" onClick={deleteTemplateTask}>Удалить</button>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="button ghost" onClick={closeTemplateEdit}>Отмена</button>
+              <button className="button" onClick={saveTemplateEdit}>Сохранить</button>
+            </div>
+          </div>
+        </div>
       </Modal>
 
       <Modal open={addModal.open} title="Добавить предмет" onClose={closeAdd} onOk={applyAdd}>
@@ -101,7 +117,7 @@ export default function Templates({ weekTemplate, setWeekTemplate }:{ weekTempla
           <div className="small">Время</div>
           <TimePicker h={addModal.h} m={addModal.m} onChange={(h,m)=>setAddModal(s=>({...s,h,m}))} />
           <div className="small">Дни разгрузки</div>
-          <OffloadDaysGrid value={addModal.offloadDays} onChange={v=>setAddModal(s=>({...s,offloadDays:v}))} daySums={daySumsRaw} avg={avg} disableDay={addModal.day!==null ? (addModal.day + 6) % 7 : null} />
+          <OffloadDaysGrid value={addModal.offloadDays} onChange={v=>setAddModal(s=>({...s,offloadDays:v}))} daySumsDoing={daySumsDoing} avgDoing={avgDoing} disabledDay={addModal.day!==null ? (addModal.day + 6) % 7 : undefined} />
         </div>
       </Modal>
     </div>

@@ -1,16 +1,19 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Task, WeekTemplate, ProgressByDate, OverridesByDate } from '../types';
 import { toDateKey, fromDateKey, addDays, weekdayRu, fmtMinutesLong } from '../utils';
-import LS, { loadJSON, saveJSON } from '../storage';
+import LS, { saveJSON } from '../storage';
 import TaskCard from '../components/TaskCard';
 import Modal from '../components/Modal';
 import TimePicker from '../components/TimePicker';
 
-export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, setOverrides, progressByDate, setProgressByDate, startedAtByDate, setStartedAtByDate }:{ 
-  weekTemplate: WeekTemplate; setWeekTemplate:(u:WeekTemplate)=>void;
-  overrides: OverridesByDate; setOverrides:(u:OverridesByDate)=>void;
-  progressByDate: ProgressByDate; setProgressByDate:(u:ProgressByDate)=>void;
-  startedAtByDate: Record<string, number>; setStartedAtByDate:(u:Record<string,number>)=>void;
+export default function Dashboard({ weekTemplate, overrides, progressByDate, startedAtByDate, setOverrides, setProgressByDate, setStartedAtByDate }:{ 
+  weekTemplate: WeekTemplate;
+  overrides: OverridesByDate;
+  progressByDate: ProgressByDate;
+  startedAtByDate: Record<string, number>;
+  setOverrides:(u:OverridesByDate)=>void;
+  setProgressByDate:(u:ProgressByDate)=>void;
+  setStartedAtByDate:(u:Record<string,number>)=>void;
 }){
   const [dateKey, setDateKey] = useState<string>(()=>toDateKey(new Date()));
   const today = useMemo(()=>fromDateKey(dateKey),[dateKey]);
@@ -38,7 +41,9 @@ export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, se
   if (remainingOpen>0){
     if (startedAt && doneAll>0){ const elapsedMin=(now.getTime()-startedAt)/60000; const pace=doneAll/Math.max(1,elapsedMin); const left=Math.ceil(remainingOpen/Math.max(0.25, pace)); eta=new Date(now.getTime()+left*60000); }
     else { eta=new Date(now.getTime()+remainingOpen*60000); }
-  } else { eta=now; }
+  } else {
+    eta=now;
+  }
 
   type OffloadItem = { task:Task; dayDiff:number; weekday:number };
   const offloadQueue: OffloadItem[] = useMemo(()=>{
@@ -54,7 +59,7 @@ export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, se
 
   const offloadId = (wk:number,t:Task)=>`offload:${wk}:${t.id}`;
 
-  const ensureStarted=()=>{ if(!startedAtByDate[dateKey]) setStartedAtByDate({...startedAtByDate,[dateKey]:Date.now()}); };
+  const ensureStarted=()=>{ if(!startedAtByDate[dateKey]) setStartedAtByDate({ ...startedAtByDate, [dateKey]:Date.now() }); };
   const setProgress=(taskId:string,value:number)=>{
     ensureStarted();
     const v = Math.max(0,Math.min(100,Math.round(value)));
@@ -90,7 +95,6 @@ export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, se
     [tomorrowKey]:(overrides[tomorrowKey]??tasksForTomorrow).map(t=>t.id===id?{...t,minutes:Math.max(0,Math.round(min))}:t) 
   });
 
-  // time modal
   const [timeEdit, setTimeEdit] = useState<{ open:boolean; taskId:string|null; h:number; m:number; }>({
     open:false, taskId:null, h:0, m:0
   });
@@ -136,7 +140,7 @@ export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, se
                 const sa=progressMap[a.id]; const sb=progressMap[b.id];
                 if((sa?.closed)&&(sb?.closed)) return 0;
                 if(sa?.closed) return 1;
-                if(sb?.closed) return -1;
+                ifsb?.closed return -1;
                 return 0;
               }).map(task=>{
                 const st = progressMap[task.id];
@@ -152,7 +156,6 @@ export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, se
         </div>
       </div>
 
-      {/* Offload */}
       {offloadQueue.length>0 && (
         <>
           <div className="hr" />
@@ -170,7 +173,7 @@ export default function Dashboard({ weekTemplate, setWeekTemplate, overrides, se
         </>
       )}
 
-      <Modal open={timeEdit.open} title="Выбор времени" onClose={closeTimeEdit} onOk={applyTimeEdit}>
+      <Modal open={timeEdit.open} title="Время на задачу (завтра)" onClose={closeTimeEdit} onOk={applyTimeEdit} okText="✔️ Сохранить">
         <TimePicker h={timeEdit.h} m={timeEdit.m} onChange={(h,m)=>setTimeEdit(s=>({...s,h,m}))} />
       </Modal>
     </div>

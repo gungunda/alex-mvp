@@ -43,10 +43,9 @@ export default function App(){
     <div>
       {Nav}
       {page==='dashboard' && (
-        <Dashboard weekTemplate={weekTemplate} setWeekTemplate={setWeekTemplate}
-          overrides={overrides} setOverrides={setOverrides}
-          progressByDate={progressByDate} setProgressByDate={setProgressByDate}
-          startedAtByDate={startedAtByDate} setStartedAtByDate={setStartedAtByDate} />
+        <Dashboard weekTemplate={weekTemplate} overrides={overrides}
+          progressByDate={progressByDate} startedAtByDate={startedAtByDate}
+          setOverrides={setOverrides} setProgressByDate={setProgressByDate} setStartedAtByDate={setStartedAtByDate} />
       )}
       {page==='templates' && (
         <Templates weekTemplate={weekTemplate} setWeekTemplate={setWeekTemplate} />
