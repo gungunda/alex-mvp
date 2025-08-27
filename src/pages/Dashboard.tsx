@@ -125,12 +125,20 @@ export default function Dashboard({
       <div className="h1">Дашборд</div>
       <div className="kicker">Сегодня: {weekdayRu[weekday]} · {today.toLocaleDateString()} · Домашка на завтра: {weekdayRu[tomorrowWeekday]} ({tomorrow.toLocaleDateString()})</div>
 
-      <div className="grid cols-4" style={{ marginTop:16 }}>
-        <div className="card"><div className="card-body stat"><div className="label">Общая нагрузка</div><div className="value">{fmtMinutesLong(Math.round(plannedAll))}</div></div></div>
-        <div className="card"><div className="card-body stat"><div className="label">Выполнено</div><div className="value">{percent}% ({fmtMinutesLong(Math.round(doneAll))})</div></div></div>
-        <div className="card"><div className="card-body stat"><div className="label">Осталось</div><div className="value">{fmtMinutesLong(Math.round(remainingOpen))}</div></div></div>
-        <div className="card"><div className="card-body stat"><div className="label">Финиш (оценка)</div><div className="value">{(remainingOpen<=0? new Date() : (new Date(new Date().getTime() + remainingOpen*60000))).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}</div></div></div>
+    {/* Метрики — фиксированная сетка 2 колонки (левая: Общая/Осталось, правая: Выполнено/Финиш) */}
+    <div className="stats-fixed">
+      <div className="stats-row">
+        <div className="stats-col">
+          <div className="card"><div className="card-body stat"><div className="label">Общая нагрузка</div><div className="value">{fmtMinutesLong(Math.round(plannedAll))}</div></div></div>
+          <div className="card"><div className="card-body stat"><div className="label">Осталось</div><div className="value">{fmtMinutesLong(Math.round(remainingOpen))}</div></div></div>
+        </div>
+        <div className="stats-col">
+          <div className="card"><div className="card-body stat"><div className="label">Выполнено</div><div className="value">{percent}% ({fmtMinutesLong(Math.round(doneAll))})</div></div></div>
+          <div className="card"><div className="card-body stat"><div className="label">Финиш (оценка)</div><div className="value">{eta ? eta.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "—"}</div></div></div>
+        </div>
       </div>
+    </div>
+
 
       <div className="card" style={{ marginTop:18 }}>
         <div className="card-body">

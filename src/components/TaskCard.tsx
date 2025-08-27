@@ -97,7 +97,7 @@ export default function TaskCard({
               type="range"
               min={0}
               max={100}
-              step={10}                      // важное: шаг в 10%
+              step={10}                      // шаг в 10%
               value={progress}
               onChange={handleRangeChange}
               onMouseUp={handleRangeMouseUp} // добиваем к ближайшим 10 при отпускании
@@ -107,19 +107,20 @@ export default function TaskCard({
             <span className="progress-percent">{progress}%</span>
           </div>
 
-          {/* только кнопки +/-10% по требованию */}
-          <div className="pills">
-            <button className="pill" onClick={dec10}>-10%</button>
-            <button className="pill" onClick={inc10}>+10%</button>
-          </div>
+          {/* ЕДИНЫЙ ГОРИЗОНТАЛЬНЫЙ РЯД: слева -10/+10, справа Закрыть/Вернуть */}
+          <div className="task-actions-row">
+            <div className="pills" style={{ marginTop: 0 }}>
+              <button className="pill" onClick={dec10}>-10%</button>
+              <button className="pill" onClick={inc10}>+10%</button>
+            </div>
 
-          {/* закрыть / вернуть */}
-          <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
-            {!closed ? (
-              <button className="button" onClick={() => onToggleClosed(true)}>Закрыть</button>
-            ) : (
-              <button className="button" onClick={() => onToggleClosed(false)}>Вернуть</button>
-            )}
+            <div>
+              {!closed ? (
+                <button className="button" onClick={() => onToggleClosed(true)}>Закрыть</button>
+              ) : (
+                <button className="button" onClick={() => onToggleClosed(false)}>Вернуть</button>
+              )}
+            </div>
           </div>
         </div>
 

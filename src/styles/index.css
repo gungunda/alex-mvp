@@ -68,3 +68,29 @@ body{margin:0;min-height:100vh;background:#000000;color:var(--text);
 /* Подсветка сумм */
 .sum-strong{font-weight:900}
 .sum-green{color:var(--ok)} .sum-warn{color:var(--warn)} .sum-red{color:var(--danger)}
+/* === Fixed 2-column stats layout for Dashboard === */
+.stats-fixed {
+  margin-top: 16px;
+  overflow-x: auto;          /* если экран совсем узкий — появится горизонтальный скролл, без развала колонок */
+}
+.stats-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: nowrap;         /* не даём перетекать в одну колонку */
+}
+.stats-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 80px;          /* чтобы карточки не схлопывались на очень узких экранах */
+  flex: 1 0 0;
+}
+
+/* === Actions row on TaskCard: pills left, close/right aligned === */
+.task-actions-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* слева шаги, справа закрыть/вернуть */
+}
+
