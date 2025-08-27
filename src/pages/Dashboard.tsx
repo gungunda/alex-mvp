@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Task, WeekTemplate, ProgressByDate, OverridesByDate } from '../types';
-import { fromDateKey, addDays, weekdayRu, fmtMinutesLong } from '../utils';
+import { fromDateKey, addDays, weekdayRu, fmtMinutesLong, fmtHM } from '../utils';
 import LS, { saveJSON } from '../storage';
 import TaskCard from '../components/TaskCard';
 import Modal from '../components/Modal';
@@ -20,6 +20,7 @@ export default function Dashboard({
   setStartedAtByDate:(u:Record<string,number>)=>void;
   dateKey: string;
 }){
+
   // !!! локальное состояние dateKey УДАЛЕНО — используем проп
   const today = useMemo(()=>fromDateKey(dateKey),[dateKey]);
   const weekday = today.getDay();
@@ -27,27 +28,42 @@ export default function Dashboard({
   const tomorrowKey = useMemo(()=>`${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`,[tomorrow]);
   const tomorrowWeekday = tomorrow.getDay();
 
+  // ===== план на завтра (дефолт/override) =====
   const tasksForTomorrow = useMemo(()=>{
     const o = overrides[tomorrowKey];
     if (o && o.length) return o;
     return weekTemplate[tomorrowWeekday] || [];
   },[overrides, tomorrowKey, weekTemplate, tomorrowWeekday]);
 
+  // ===== прогресс текущего дня (ключ — сегодняшняя дата) =====
   const progressMap = progressByDate[dateKey] || {};
 
+  // ===== метрики =====
   const plannedAll = tasksForTomorrow.reduce((s,t)=>s+t.minutes,0);
   const doneAll = tasksForTomorrow.reduce((s,t)=>s + (t.minutes*(progressMap[t.id]?.progress??0))/100,0);
-  const remainingOpen = tasksForTomorrow.reduce((s,t)=>{ const st = progressMap[t.id]; if (st?.closed) return s; return s + t.minutes*(1-(st?.progress??0)/100); },0);
+  const remainingOpen = tasksForTomorrow.reduce((s,t)=>{
+    const st = progressMap[t.id];
+    if (st?.closed) return s;
+    return s + t.minutes*(1-(st?.progress??0)/100);
+  },0);
   const percent = plannedAll>0 ? Math.round((doneAll/plannedAll)*100) : 0;
 
+  // ===== ETA =====
   const now = new Date();
   const startedAt = startedAtByDate[dateKey];
   let eta: Date | null = null;
   if (remainingOpen>0){
-    if (startedAt && doneAll>0){ const elapsedMin=(now.getTime()-startedAt)/60000; const pace=doneAll/Math.max(1,elapsedMin); const left=Math.ceil(remainingOpen/Math.max(0.25, pace)); eta=new Date(now.getTime()+left*60000); }
-    else { eta=new Date(now.getTime()+remainingOpen*60000); }
+    if (startedAt && doneAll>0){
+      const elapsedMin=(now.getTime()-startedAt)/60000;
+      const pace=doneAll/Math.max(1,elapsedMin);
+      const left=Math.ceil(remainingOpen/Math.max(0.25, pace));
+      eta=new Date(now.getTime()+left*60000);
+    } else {
+      eta=new Date(now.getTime()+remainingOpen*60000);
+    }
   } else { eta=now; }
 
+  // ===== Разгрузка: будущие предметы (<=7 дн), у которых offloadDays включает СЕГОДНЯШНИЙ weekday =====
   type OffloadItem = { task:Task; dayDiff:number; weekday:number };
   const offloadQueue: OffloadItem[] = useMemo(()=>{
     const acc: OffloadItem[] = [];
@@ -65,15 +81,25 @@ export default function Dashboard({
 
   const offloadId = (wk:number,t:Task)=>`offload:${wk}:${t.id}`;
 
-  const ensureStarted=()=>{ if(!startedAtByDate[dateKey]) setStartedAtByDate({ ...startedAtByDate, [dateKey]:Date.now() }); };
+  // ===== Хелперы прогресса =====
+  const ensureStarted=()=>{ 
+    if(!startedAtByDate[dateKey]) {
+      setStartedAtByDate({ ...startedAtByDate, [dateKey]:Date.now() });
+    }
+  };
+
+  const clamp01 = (v:number)=>Math.min(100,Math.max(0,v));
+  const snap10 = (v:number)=>Math.round(v/10)*10;
+
   const setProgress=(taskId:string,value:number)=>{
     ensureStarted();
-    const v = Math.max(0,Math.min(100,Math.round(value)));
+    const v = snap10(clamp01(Math.round(value)));
     setProgressByDate({
       ...progressByDate,
       [dateKey]:{ ...(progressByDate[dateKey]||{}), [taskId]:{ progress: v, closed: v>=100 || progressByDate[dateKey]?.[taskId]?.closed||false } }
     });
   };
+
   const setClosed=(id:string,closed:boolean)=> setProgressByDate({
     ...progressByDate,
     [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress:progressByDate[dateKey]?.[id]?.progress??0, closed } }
@@ -81,12 +107,13 @@ export default function Dashboard({
 
   const setOffloadProgress=(wk:number,tId:string,value:number)=>{
     const id = offloadId(wk,{id:tId,title:"",minutes:0} as Task);
-    const v = Math.max(0,Math.min(100,Math.round(value)));
+    const v = snap10(clamp01(Math.round(value)));
     setProgressByDate({
       ...progressByDate,
       [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress: v, closed: v>=100 || progressByDate[dateKey]?.[id]?.closed||false } }
     });
   };
+
   const setOffloadClosed=(wk:number,t:Task,closed:boolean)=>{
     const id = offloadId(wk,t);
     setProgressByDate({
@@ -95,25 +122,67 @@ export default function Dashboard({
     });
   };
 
-  const createOverrideForTomorrow=()=>{ if(!overrides[tomorrowKey]) setOverrides({ ...overrides, [tomorrowKey]:tasksForTomorrow.map(t=>({...t})) }); };
+  // ===== Переопределения плана на завтра (сохраняются в overrides) =====
+  const createOverrideForTomorrow=()=>{
+    if(!overrides[tomorrowKey]) {
+      setOverrides({ ...overrides, [tomorrowKey]:tasksForTomorrow.map(t=>({...t})) });
+    }
+  };
   const setPlannedTomorrow=(id:string,min:number)=> setOverrides({
     ...overrides,
     [tomorrowKey]:(overrides[tomorrowKey]??tasksForTomorrow).map(t=>t.id===id?{...t,minutes:Math.max(0,Math.round(min))}:t)
   });
 
-  const [timeEdit, setTimeEdit] = useState<{ open:boolean; taskId:string|null; h:number; m:number; }>({
-    open:false, taskId:null, h:0, m:0
+  /* ===========================================================
+     НОВОЕ: локальные (эфемерные) планы для карточек РАЗГРУЗКИ
+     и модалка выбора времени под этот режим
+     =========================================================== */
+  // ключ — offload:${wk}:${task.id}; НЕ сохраняем в localStorage
+  const [offloadPlanOverrides, setOffloadPlanOverrides] = useState<Record<string, number>>({});
+
+  // Режимы редактора времени: "tomorrow" (как было) и "offload"
+  type TimeEditMode =
+    | { kind:'tomorrow'; taskId:string }
+    | { kind:'offload'; wk:number; taskId:string; offKey:string };
+
+  // Поддерживаем оба режима в одной модалке
+  const [timeEdit, setTimeEdit] = useState<{ open:boolean; mode:TimeEditMode|null; h:number; m:number; }>({
+    open:false, mode:null, h:0, m:0
   });
-  const openTimeEditTomorrow=(t:Task)=>{ const h=Math.floor(t.minutes/60); const m=t.minutes%60; setTimeEdit({ open:true, taskId:t.id, h, m: Math.round(m/10)*10 }); };
+
+  const openTimeEditTomorrow=(t:Task)=>{ 
+    const h=Math.floor(t.minutes/60); 
+    const m=t.minutes%60; 
+    setTimeEdit({ open:true, mode:{kind:'tomorrow', taskId:t.id}, h, m: Math.round(m/10)*10 }); 
+  };
+
+  const openTimeEditOffload=(wk:number, t:Task)=>{
+    const key = offloadId(wk, t);
+    const baseMin = offloadPlanOverrides[key] ?? t.minutes;
+    const h = Math.floor(baseMin/60);
+    const m = baseMin % 60;
+    setTimeEdit({ open:true, mode:{kind:'offload', wk, taskId:t.id, offKey:key}, h, m: Math.round(m/10)*10 });
+  };
+
   const closeTimeEdit=()=>setTimeEdit(s=>({...s,open:false}));
+
   const applyTimeEdit=()=>{
-    if(!timeEdit.taskId) return closeTimeEdit();
+    if(!timeEdit.mode) return closeTimeEdit();
     const total = timeEdit.h*60 + timeEdit.m;
-    createOverrideForTomorrow();
-    setPlannedTomorrow(timeEdit.taskId, total);
+
+    if(timeEdit.mode.kind === 'tomorrow'){
+      // сохраняем как override для завтрашнего дня (как раньше)
+      createOverrideForTomorrow();
+      setPlannedTomorrow(timeEdit.mode.taskId, total);
+    } else {
+      // RAZGрузка: сохраняем ТОЛЬКО локально (эфемерно)
+      const key = timeEdit.mode.offKey;
+      setOffloadPlanOverrides(prev=>({ ...prev, [key]: total }));
+    }
     closeTimeEdit();
   };
 
+  // ===== Сохраняем стандартные структуры (как и раньше) =====
   useEffect(()=>{
     saveJSON(LS.OVERRIDES, overrides);
     saveJSON(LS.PROGRESS, progressByDate);
@@ -125,21 +194,21 @@ export default function Dashboard({
       <div className="h1">Домашняя работа {today.toLocaleDateString()}</div>
       <div className="kicker">Дата: {weekdayRu[weekday]} · {today.toLocaleDateString()} · Задания на {weekdayRu[tomorrowWeekday]} ({tomorrow.toLocaleDateString()})</div>
 
-    {/* Метрики — фиксированная сетка 2 колонки (левая: Общая/Осталось, правая: Выполнено/Финиш) */}
-    <div className="stats-fixed">
-      <div className="stats-row">
-        <div className="stats-col">
-          <div className="card"><div className="card-body stat"><div className="label">Общая нагрузка</div><div className="value">{fmtMinutesLong(Math.round(plannedAll))}</div></div></div>
-          <div className="card"><div className="card-body stat"><div className="label">Осталось</div><div className="value">{fmtMinutesLong(Math.round(remainingOpen))}</div></div></div>
-        </div>
-        <div className="stats-col">
-          <div className="card"><div className="card-body stat"><div className="label">Выполнено</div><div className="value">{percent}% ({fmtMinutesLong(Math.round(doneAll))})</div></div></div>
-          <div className="card"><div className="card-body stat"><div className="label">Финиш (оценка)</div><div className="value">{eta ? eta.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "—"}</div></div></div>
+      {/* Метрики — фиксированная сетка 2 колонки (левая: Общая/Осталось, правая: Выполнено/Финиш) */}
+      <div className="stats-fixed">
+        <div className="stats-row">
+          <div className="stats-col">
+            <div className="card"><div className="card-body stat"><div className="label">Общая нагрузка</div><div className="value">{fmtMinutesLong(Math.round(plannedAll))}</div></div></div>
+            <div className="card"><div className="card-body stat"><div className="label">Осталось</div><div className="value">{fmtMinutesLong(Math.round(remainingOpen))}</div></div></div>
+          </div>
+          <div className="stats-col">
+            <div className="card"><div className="card-body stat"><div className="label">Выполнено</div><div className="value">{percent}% ({fmtMinutesLong(Math.round(doneAll))})</div></div></div>
+            <div className="card"><div className="card-body stat"><div className="label">Финиш (оценка)</div><div className="value">{eta ? eta.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "—"}</div></div></div>
+          </div>
         </div>
       </div>
-    </div>
 
-
+      {/* Задано на завтра */}
       <div className="card" style={{ marginTop:18 }}>
         <div className="card-body">
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -178,6 +247,7 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* Разгрузка на будущее */}
       {offloadQueue.length>0 && (
         <>
           <div className="card" style={{ marginTop:18 }}>
@@ -186,16 +256,24 @@ export default function Dashboard({
               <div className="kicker">Подготовь заранее то, что назначено на ближние дни (отмечено разгрузкой на {weekdayRu[weekday]}).</div>
               <div className="grid" style={{ gap:12, marginTop:12 }}>
                 {offloadQueue.map(({task,dayDiff,weekday:wk})=>{
-                  const id = offloadId(wk,task); const st = progressMap[id]; const progress = st?.progress ?? 0; const closed = st?.closed ?? false;
+                  const id = offloadId(wk,task);
+                  const st = progressMap[id];
+                  const progress = st?.progress ?? 0;
+                  const closed = st?.closed ?? false;
+
+                  // план времени для карточки разгрузки: локальный оверрайд (эфемерно) или дефолт
+                  const planMinutes = offloadPlanOverrides[id] ?? task.minutes;
+
                   return (
                     <TaskCard
                       key={id}
                       task={task}
                       progress={progress}
                       closed={closed}
-                      planMinutes={task.minutes}
+                      planMinutes={planMinutes}
                       onChangeProgress={v=>setOffloadProgress(wk, task.id, v)}
                       onToggleClosed={c=>setOffloadClosed(wk, task, c)}
+                      onEditTime={()=>openTimeEditOffload(wk, task)}  // <— кнопка времени в правом верхнем углу
                       rightBadge={<span className="badge">{weekdayRu[wk]} · через {dayDiff} д.</span>}
                     />
                   );
@@ -206,7 +284,14 @@ export default function Dashboard({
         </>
       )}
 
-      <Modal open={timeEdit.open} title="Время на задачу (завтра)" onClose={closeTimeEdit} onOk={applyTimeEdit} okText="✔️ Сохранить">
+      {/* Общая модалка выбора времени (для "завтра" и "разгрузки") */}
+      <Modal
+        open={timeEdit.open}
+        title={timeEdit.mode?.kind === 'offload' ? "Время (разгрузка)" : "Время на задачу (завтра)"}
+        onClose={closeTimeEdit}
+        onOk={applyTimeEdit}
+        okText="✔️ Сохранить"
+      >
         <TimePicker h={timeEdit.h} m={timeEdit.m} onChange={(h,m)=>setTimeEdit(s=>({...s,h,m}))} />
       </Modal>
     </div>
