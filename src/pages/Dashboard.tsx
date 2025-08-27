@@ -140,7 +140,7 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
                 const sa=progressMap[a.id]; const sb=progressMap[b.id];
                 if((sa?.closed)&&(sb?.closed)) return 0;
                 if(sa?.closed) return 1;
-                ifsb?.closed return -1;
+                if(sb?.closed) return -1;
                 return 0;
               }).map(task=>{
                 const st = progressMap[task.id];

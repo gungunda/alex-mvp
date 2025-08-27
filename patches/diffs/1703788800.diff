@@ -1,0 +1,7 @@
+diff --git a/src/App.tsx b/src/App.tsx
+index e69de29..4c8b154 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@
++// Тестовый комментарий: проверка применения diff-патча через скрипт
+
