@@ -122,8 +122,8 @@ export default function Dashboard({
 
   return (
     <div className="container">
-      <div className="h1">Дашборд</div>
-      <div className="kicker">Сегодня: {weekdayRu[weekday]} · {today.toLocaleDateString()} · Домашка на завтра: {weekdayRu[tomorrowWeekday]} ({tomorrow.toLocaleDateString()})</div>
+      <div className="h1">Домашняя работа {today.toLocaleDateString()}</div>
+      <div className="kicker">Дата: {weekdayRu[weekday]} · {today.toLocaleDateString()} · Задания на {weekdayRu[tomorrowWeekday]} ({tomorrow.toLocaleDateString()})</div>
 
     {/* Метрики — фиксированная сетка 2 колонки (левая: Общая/Осталось, правая: Выполнено/Финиш) */}
     <div className="stats-fixed">
@@ -143,8 +143,8 @@ export default function Dashboard({
       <div className="card" style={{ marginTop:18 }}>
         <div className="card-body">
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            <div className="h2">Домашка на завтра</div>
-            <div className="badge">Всего задач: {tasksForTomorrow.length}</div>
+            <div className="h2">Задано на завтра</div>
+            <div className="badge">Всего предметов: {tasksForTomorrow.length}</div>
           </div>
           {tasksForTomorrow.length===0 ? (
             <div className="empty">На завтра активных занятий нет. Добавь по шаблону недели или создай переопределение для этой даты.</div>
@@ -180,25 +180,28 @@ export default function Dashboard({
 
       {offloadQueue.length>0 && (
         <>
-          <div className="hr" />
-          <div className="h2">Разгрузка на сегодня</div>
-          <div className="kicker">Подготовь заранее то, что назначено на ближние дни (отмечено разгрузкой на {weekdayRu[weekday]}).</div>
-          <div className="grid" style={{ gap:12, marginTop:12 }}>
-            {offloadQueue.map(({task,dayDiff,weekday:wk})=>{
-              const id = offloadId(wk,task); const st = progressMap[id]; const progress = st?.progress ?? 0; const closed = st?.closed ?? false;
-              return (
-                <TaskCard
-                  key={id}
-                  task={task}
-                  progress={progress}
-                  closed={closed}
-                  planMinutes={task.minutes}
-                  onChangeProgress={v=>setOffloadProgress(wk, task.id, v)}
-                  onToggleClosed={c=>setOffloadClosed(wk, task, c)}
-                  rightBadge={<span className="badge">{weekdayRu[wk]} · через {dayDiff} д.</span>}
-                />
-              );
-            })}
+          <div className="card" style={{ marginTop:18 }}>
+            <div className="card-body">
+              <div className="h2">Разгрузка на будущее</div>
+              <div className="kicker">Подготовь заранее то, что назначено на ближние дни (отмечено разгрузкой на {weekdayRu[weekday]}).</div>
+              <div className="grid" style={{ gap:12, marginTop:12 }}>
+                {offloadQueue.map(({task,dayDiff,weekday:wk})=>{
+                  const id = offloadId(wk,task); const st = progressMap[id]; const progress = st?.progress ?? 0; const closed = st?.closed ?? false;
+                  return (
+                    <TaskCard
+                      key={id}
+                      task={task}
+                      progress={progress}
+                      closed={closed}
+                      planMinutes={task.minutes}
+                      onChangeProgress={v=>setOffloadProgress(wk, task.id, v)}
+                      onToggleClosed={c=>setOffloadClosed(wk, task, c)}
+                      rightBadge={<span className="badge">{weekdayRu[wk]} · через {dayDiff} д.</span>}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </>
       )}

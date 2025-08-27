@@ -40,7 +40,7 @@ export default function TaskCard({
     setProgress10(raw);
   };
 
-  // чтобы «клик по шкале» тоже попадал на ближайшие 10%
+  // «добивание» при отпускании мыши/тача
   const handleRangeMouseUp: React.MouseEventHandler<HTMLInputElement> = (e) => {
     const input = e.currentTarget;
     const raw = Number(input.value);
@@ -64,7 +64,6 @@ export default function TaskCard({
     }
   };
 
-  // быстрые кнопки шагом 10
   const dec10 = () => setProgress10(progress - 10);
   const inc10 = () => setProgress10(progress + 10);
 
@@ -72,14 +71,12 @@ export default function TaskCard({
     <div className={`card ${closed ? "opacity-60" : ""}`}>
       <div className="card-body task">
         <div>
-          {/* заголовок + мета */}
-          <div className="task-title">{task.title}</div>
-          <div className="task-meta">
-            План: {fmtMinutesLong(planMinutes)} · Осталось: {fmtMinutesLong(Math.round(remaining))}
-          </div>
-
-          {/* кнопка времени в правом верхнем углу карточки */}
-          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          {/* ===== ШАПКА: название слева, время справа (в правом верхнем углу) ===== */}
+          <div
+            className="task-header"
+            style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}
+          >
+            <div className="task-title">{task.title}</div>
             {onEditTime && (
               <button
                 className="time-btn"
@@ -91,24 +88,29 @@ export default function TaskCard({
             )}
           </div>
 
+          {/* мета под заголовком */}
+          <div className="task-meta" style={{ marginTop: 6 }}>
+            План: {fmtMinutesLong(planMinutes)} · Осталось: {fmtMinutesLong(Math.round(remaining))}
+          </div>
+
           {/* прогресс + проценты */}
           <div className="progress-wrap">
             <input
               type="range"
               min={0}
               max={100}
-              step={10}                      // шаг в 10%
+              step={10}                      // шаг 10%
               value={progress}
               onChange={handleRangeChange}
-              onMouseUp={handleRangeMouseUp} // добиваем к ближайшим 10 при отпускании
-              onKeyDown={handleRangeKeyDown} // клавиатурные шаги по 10
+              onMouseUp={handleRangeMouseUp}
+              onKeyDown={handleRangeKeyDown}
               style={{ flex: 1 }}
             />
             <span className="progress-percent">{progress}%</span>
           </div>
 
-          {/* ЕДИНЫЙ ГОРИЗОНТАЛЬНЫЙ РЯД: слева -10/+10, справа Закрыть/Вернуть */}
-          <div className="task-actions-row">
+          {/* единый горизонтальный ряд: слева -10/+10, справа Закрыть/Вернуть */}
+          <div className="task-actions-row" style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div className="pills" style={{ marginTop: 0 }}>
               <button className="pill" onClick={dec10}>-10%</button>
               <button className="pill" onClick={inc10}>+10%</button>
