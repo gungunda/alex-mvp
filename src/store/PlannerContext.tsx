@@ -8,7 +8,7 @@ type Ctx = {
   weekTemplate: WeekTemplate; setWeekTemplate: React.Dispatch<React.SetStateAction<WeekTemplate>>;
   overrides: OverridesByDate; setOverrides: React.Dispatch<React.SetStateAction<OverridesByDate>>;
   progressByDate: ProgressByDate; setProgressByDate: React.Dispatch<React.SetStateAction<ProgressByDate>>;
-  startedAtByDate: Record<string, number>; setStartedAtByDate: React.Dispatch<React.SetStateAction<Record:string,number>>>;
+  startedAtByDate: RecordFix; setStartedAtByDate: React.Dispatch<React.SetStateAction<RecordFix>>;
   tasksForDate: Task[];
   progressMap: Record<string,{progress:number;closed:boolean}>;
   plannedAll: number; doneAll: number; remainingOpen: number; percent: number; eta: Date|null;
