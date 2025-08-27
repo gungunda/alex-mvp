@@ -1,12 +1,16 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Task, WeekTemplate, ProgressByDate, OverridesByDate } from '../types';
-import { toDateKey, fromDateKey, addDays, weekdayRu, fmtMinutesLong } from '../utils';
+import { fromDateKey, addDays, weekdayRu, fmtMinutesLong } from '../utils';
 import LS, { saveJSON } from '../storage';
 import TaskCard from '../components/TaskCard';
 import Modal from '../components/Modal';
 import TimePicker from '../components/TimePicker';
 
-export default function Dashboard({ weekTemplate, overrides, progressByDate, startedAtByDate, setOverrides, setProgressByDate, setStartedAtByDate }:{ 
+export default function Dashboard({
+  weekTemplate, overrides, progressByDate, startedAtByDate,
+  setOverrides, setProgressByDate, setStartedAtByDate,
+  dateKey,   // <-- получаем дату от App
+}:{
   weekTemplate: WeekTemplate;
   overrides: OverridesByDate;
   progressByDate: ProgressByDate;
@@ -14,12 +18,13 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
   setOverrides:(u:OverridesByDate)=>void;
   setProgressByDate:(u:ProgressByDate)=>void;
   setStartedAtByDate:(u:Record<string,number>)=>void;
+  dateKey: string;
 }){
-  const [dateKey, setDateKey] = useState<string>(()=>toDateKey(new Date()));
+  // !!! локальное состояние dateKey УДАЛЕНО — используем проп
   const today = useMemo(()=>fromDateKey(dateKey),[dateKey]);
   const weekday = today.getDay();
   const tomorrow = useMemo(()=>addDays(today, 1),[today]);
-  const tomorrowKey = useMemo(()=>toDateKey(tomorrow),[tomorrow]);
+  const tomorrowKey = useMemo(()=>`${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`,[tomorrow]);
   const tomorrowWeekday = tomorrow.getDay();
 
   const tasksForTomorrow = useMemo(()=>{
@@ -41,9 +46,7 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
   if (remainingOpen>0){
     if (startedAt && doneAll>0){ const elapsedMin=(now.getTime()-startedAt)/60000; const pace=doneAll/Math.max(1,elapsedMin); const left=Math.ceil(remainingOpen/Math.max(0.25, pace)); eta=new Date(now.getTime()+left*60000); }
     else { eta=new Date(now.getTime()+remainingOpen*60000); }
-  } else {
-    eta=now;
-  }
+  } else { eta=now; }
 
   type OffloadItem = { task:Task; dayDiff:number; weekday:number };
   const offloadQueue: OffloadItem[] = useMemo(()=>{
@@ -51,7 +54,10 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
     for(let i=1;i<=7;i++){
       const future = addDays(today, i);
       const wk = future.getDay();
-      (weekTemplate[wk]||[]).forEach(t=>{ const days = t.offloadDays??[]; if (days.includes(weekday)) acc.push({task:t, dayDiff:i, weekday:wk}); });
+      (weekTemplate[wk]||[]).forEach(t=>{
+        const days = t.offloadDays??[];
+        if (days.includes(weekday)) acc.push({task:t, dayDiff:i, weekday:wk});
+      });
     }
     acc.sort((a,b)=>a.dayDiff-b.dayDiff);
     return acc;
@@ -63,36 +69,36 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
   const setProgress=(taskId:string,value:number)=>{
     ensureStarted();
     const v = Math.max(0,Math.min(100,Math.round(value)));
-    setProgressByDate({ 
-      ...progressByDate, 
-      [dateKey]:{ ...(progressByDate[dateKey]||{}), [taskId]:{ progress: v, closed: v>=100 || progressByDate[dateKey]?.[taskId]?.closed||false } } 
+    setProgressByDate({
+      ...progressByDate,
+      [dateKey]:{ ...(progressByDate[dateKey]||{}), [taskId]:{ progress: v, closed: v>=100 || progressByDate[dateKey]?.[taskId]?.closed||false } }
     });
   };
-  const setClosed=(id:string,closed:boolean)=> setProgressByDate({ 
-    ...progressByDate, 
-    [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress:progressByDate[dateKey]?.[id]?.progress??0, closed } } 
+  const setClosed=(id:string,closed:boolean)=> setProgressByDate({
+    ...progressByDate,
+    [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress:progressByDate[dateKey]?.[id]?.progress??0, closed } }
   });
 
   const setOffloadProgress=(wk:number,tId:string,value:number)=>{
-    const id = offloadId(wk,{id:tId,title:"",minutes:0});
+    const id = offloadId(wk,{id:tId,title:"",minutes:0} as Task);
     const v = Math.max(0,Math.min(100,Math.round(value)));
-    setProgressByDate({ 
-      ...progressByDate, 
-      [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress: v, closed: v>=100 || progressByDate[dateKey]?.[id]?.closed||false } } 
+    setProgressByDate({
+      ...progressByDate,
+      [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress: v, closed: v>=100 || progressByDate[dateKey]?.[id]?.closed||false } }
     });
   };
   const setOffloadClosed=(wk:number,t:Task,closed:boolean)=>{
     const id = offloadId(wk,t);
-    setProgressByDate({ 
-      ...progressByDate, 
-      [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress:progressByDate[dateKey]?.[id]?.progress??0, closed } } 
+    setProgressByDate({
+      ...progressByDate,
+      [dateKey]:{ ...(progressByDate[dateKey]||{}), [id]:{ progress:progressByDate[dateKey]?.[id]?.progress??0, closed } }
     });
   };
 
   const createOverrideForTomorrow=()=>{ if(!overrides[tomorrowKey]) setOverrides({ ...overrides, [tomorrowKey]:tasksForTomorrow.map(t=>({...t})) }); };
-  const setPlannedTomorrow=(id:string,min:number)=> setOverrides({ 
-    ...overrides, 
-    [tomorrowKey]:(overrides[tomorrowKey]??tasksForTomorrow).map(t=>t.id===id?{...t,minutes:Math.max(0,Math.round(min))}:t) 
+  const setPlannedTomorrow=(id:string,min:number)=> setOverrides({
+    ...overrides,
+    [tomorrowKey]:(overrides[tomorrowKey]??tasksForTomorrow).map(t=>t.id===id?{...t,minutes:Math.max(0,Math.round(min))}:t)
   });
 
   const [timeEdit, setTimeEdit] = useState<{ open:boolean; taskId:string|null; h:number; m:number; }>({
@@ -147,8 +153,16 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
                 const progress = st?.progress ?? 0;
                 const closed = st?.closed ?? false;
                 return (
-                  <TaskCard key={task.id} task={task} progress={progress} closed={closed} planMinutes={task.minutes}
-                    onChangeProgress={v=>setProgress(task.id,v)} onToggleClosed={c=>setClosed(task.id,c)} onEditTime={()=>openTimeEditTomorrow(task)} />
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    progress={progress}
+                    closed={closed}
+                    planMinutes={task.minutes}
+                    onChangeProgress={v=>setProgress(task.id,v)}
+                    onToggleClosed={c=>setClosed(task.id,c)}
+                    onEditTime={()=>openTimeEditTomorrow(task)}
+                  />
                 );
               })}
             </div>
@@ -165,8 +179,16 @@ export default function Dashboard({ weekTemplate, overrides, progressByDate, sta
             {offloadQueue.map(({task,dayDiff,weekday:wk})=>{
               const id = offloadId(wk,task); const st = progressMap[id]; const progress = st?.progress ?? 0; const closed = st?.closed ?? false;
               return (
-                <TaskCard key={id} task={task} progress={progress} closed={closed} planMinutes={task.minutes}
-                  onChangeProgress={v=>setOffloadProgress(wk, task.id, v)} onToggleClosed={c=>setOffloadClosed(wk, task, c)} rightBadge={<span className="badge">{weekdayRu[wk]} · через {dayDiff} д.</span>} />
+                <TaskCard
+                  key={id}
+                  task={task}
+                  progress={progress}
+                  closed={closed}
+                  planMinutes={task.minutes}
+                  onChangeProgress={v=>setOffloadProgress(wk, task.id, v)}
+                  onToggleClosed={c=>setOffloadClosed(wk, task, c)}
+                  rightBadge={<span className="badge">{weekdayRu[wk]} · через {dayDiff} д.</span>}
+                />
               );
             })}
           </div>

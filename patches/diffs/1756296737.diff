@@ -1,0 +1,90 @@
+diff --git a/src/App.tsx b/src/App.tsx
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,12 +1,16 @@
+-  import React, { useEffect, useState } from 'react';
+-  import { WeekTemplate, ProgressByDate, OverridesByDate } from './types';
+-  import { uuid } from './utils';
++  import React, { useEffect, useState } from 'react';
++  import { WeekTemplate, ProgressByDate, OverridesByDate } from './types';
++  import { uuid, toDateKey } from './utils';
+   import LS, { loadJSON, saveJSON } from './storage';
+   import Dashboard from './pages/Dashboard';
+   import Templates from './pages/Templates';
+@@
+   export default function App(){
+-    const [page, setPage] = useState<'dashboard'|'templates'>(() => loadJSON(LS.UI,{page:'dashboard' as const}).page);
++    const [page, setPage] = useState<'dashboard'|'templates'>(() => loadJSON(LS.UI,{page:'dashboard' as const}).page);
+     useEffect(()=>saveJSON(LS.UI,{page}),[page]);
+
++    // Lifted dateKey state back to App (for top navbar date control)
++    const [dateKey, setDateKey] = useState<string>(() => toDateKey(new Date()));
++
+     const [weekTemplate, setWeekTemplate] = useState<WeekTemplate>(()=>loadJSON(LS.WEEK, seedWeek));
+     const [overrides, setOverrides] = useState<OverridesByDate>(()=>loadJSON(LS.OVERRIDES, {}));
+     const [progressByDate, setProgressByDate] = useState<ProgressByDate>(()=>loadJSON(LS.PROGRESS, {}));
+@@
+-    const Nav = (
++    const Nav = (
+       <div className="appbar">
+         <div className="appbar-inner">
+           <div className="brand"><span className="brand-badge">ST</span> Study Planner</div>
+           <div className="tabs" role="tablist">
+             <button className="tab" aria-current={page==='dashboard'?'page':undefined} onClick={()=>setPage('dashboard')}>Dashboard</button>
+             <button className="tab" aria-current={page==='templates'?'page':undefined} onClick={()=>setPage('templates')}>Правка расписания</button>
+           </div>
+-          <div className="header-actions"></div>
++          <div className="header-actions">
++            <input className="input" type="date" value={dateKey} onChange={e=>setDateKey((e.target as HTMLInputElement).value)} />
++            <button className="button ghost" onClick={()=>setDateKey(toDateKey(new Date()))}>Сегодня</button>
++          </div>
+         </div>
+       </div>
+     );
+@@
+-        {page==='dashboard' && (
+-          <Dashboard weekTemplate={weekTemplate} overrides={overrides}
+-            progressByDate={progressByDate} startedAtByDate={startedAtByDate}
+-            setOverrides={setOverrides} setProgressByDate={setProgressByDate} setStartedAtByDate={setStartedAtByDate} />
+-        )}
++        {page==='dashboard' && (
++          <Dashboard weekTemplate={weekTemplate} overrides={overrides}
++            progressByDate={progressByDate} startedAtByDate={startedAtByDate}
++            setOverrides={setOverrides} setProgressByDate={setProgressByDate} setStartedAtByDate={setStartedAtByDate}
++            dateKey={dateKey} />
++        )}
+diff --git a/src/pages/Dashboard.tsx b/src/pages/Dashboard.tsx
+--- a/src/pages/Dashboard.tsx
++++ b/src/pages/Dashboard.tsx
+@@ -1,18 +1,17 @@
+-  import React, { useMemo, useState, useEffect } from 'react';
++  import React, { useMemo, useState, useEffect } from 'react';
+   import { Task, WeekTemplate, ProgressByDate, OverridesByDate } from '../types';
+   import { toDateKey, fromDateKey, addDays, weekdayRu, fmtMinutesLong } from '../utils';
+   import LS, { saveJSON } from '../storage';
+   import TaskCard from '../components/TaskCard';
+   import Modal from '../components/Modal';
+   import TimePicker from '../components/TimePicker';
+
+-  export default function Dashboard({ weekTemplate, overrides, progressByDate, startedAtByDate, setOverrides, setProgressByDate, setStartedAtByDate }:{ 
++  export default function Dashboard({ weekTemplate, overrides, progressByDate, startedAtByDate, setOverrides, setProgressByDate, setStartedAtByDate, dateKey }:{ 
+     weekTemplate: WeekTemplate;
+     overrides: OverridesByDate;
+     progressByDate: ProgressByDate;
+     startedAtByDate: Record<string, number>;
+     setOverrides:(u:OverridesByDate)=>void;
+     setProgressByDate:(u:ProgressByDate)=>void;
+-    setStartedAtByDate:(u:Record<string,number>)=>void;
++    setStartedAtByDate:(u:Record<string,number>)=>void;
++    dateKey: string;
+   }){
+-    const [dateKey, setDateKey] = useState<string>(()=>toDateKey(new Date()));
+     const today = useMemo(()=>fromDateKey(dateKey),[dateKey]);
+     const weekday = today.getDay();
+     const tomorrow = useMemo(()=>addDays(today, 1),[today]);
+@@
+     useEffect(()=>{
+       saveJSON(LS.OVERRIDES, overrides);
+       saveJSON(LS.PROGRESS, progressByDate);
+       saveJSON(LS.STARTED, startedAtByDate);
+     },[overrides, progressByDate, startedAtByDate]);

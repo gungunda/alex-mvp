@@ -1,45 +1,132 @@
-import React from 'react';
-import { Task } from '../types';
-import { fmtMinutesLong, fmtHM } from '../utils';
+import React from "react";
+import { Task } from "../types";
+import { fmtMinutesLong, fmtHM } from "../utils";
 
-export default function TaskCard({ task, progress, closed, onChangeProgress, onToggleClosed, planMinutes, onEditTime, rightBadge }:{ task:Task; progress:number; closed:boolean; onChangeProgress:(v:number)=>void; onToggleClosed:(closed:boolean)=>void; planMinutes:number; onEditTime?:()=>void; rightBadge?:React.ReactNode; }){
-  const remaining = Math.max(0, planMinutes*(1-progress/100));
+type Props = {
+  task: Task;
+  progress: number;          // 0..100
+  closed: boolean;
+  planMinutes: number;       // план в минутах
+  onChangeProgress: (v: number) => void;
+  onToggleClosed: (closed: boolean) => void;
+  onEditTime?: () => void;   // клик по кнопке с временем
+  rightBadge?: React.ReactNode;
+};
+
+const clamp01 = (v: number) => Math.min(100, Math.max(0, v));
+const snap10 = (v: number) => Math.round(v / 10) * 10;
+
+export default function TaskCard({
+  task,
+  progress,
+  closed,
+  planMinutes,
+  onChangeProgress,
+  onToggleClosed,
+  onEditTime,
+  rightBadge,
+}: Props) {
+  const remaining = Math.max(0, planMinutes * (1 - progress / 100));
+
+  // единая точка изменения значения с квантом 10%
+  const setProgress10 = (val: number) => {
+    const snapped = snap10(clamp01(val));
+    if (snapped !== progress) onChangeProgress(snapped);
+  };
+
+  // обработчик для range
+  const handleRangeChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const raw = Number(e.target.value);
+    setProgress10(raw);
+  };
+
+  // чтобы «клик по шкале» тоже попадал на ближайшие 10%
+  const handleRangeMouseUp: React.MouseEventHandler<HTMLInputElement> = (e) => {
+    const input = e.currentTarget;
+    const raw = Number(input.value);
+    setProgress10(raw);
+  };
+
+  // клавиатура: ←/→ и PgUp/PgDn шагом 10
+  const handleRangeKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === "ArrowLeft" || e.key === "PageDown") {
+      e.preventDefault();
+      setProgress10(progress - 10);
+    } else if (e.key === "ArrowRight" || e.key === "PageUp") {
+      e.preventDefault();
+      setProgress10(progress + 10);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setProgress10(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setProgress10(100);
+    }
+  };
+
+  // быстрые кнопки шагом 10
+  const dec10 = () => setProgress10(progress - 10);
+  const inc10 = () => setProgress10(progress + 10);
+
   return (
-    <div className={`card ${closed?"opacity-60":""}`}>
-      <div className="card-body">
-        <div className="task-header">
+    <div className={`card ${closed ? "opacity-60" : ""}`}>
+      <div className="card-body task">
+        <div>
+          {/* заголовок + мета */}
           <div className="task-title">{task.title}</div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            {rightBadge}
+          <div className="task-meta">
+            План: {fmtMinutesLong(planMinutes)} · Осталось: {fmtMinutesLong(Math.round(remaining))}
+          </div>
+
+          {/* кнопка времени в правом верхнем углу карточки */}
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
             {onEditTime && (
-              <button className="time-btn" onClick={onEditTime} title="Изменить план времени">{fmtHM(planMinutes)}</button>
+              <button
+                className="time-btn"
+                onClick={onEditTime}
+                title="Изменить план времени"
+              >
+                {fmtHM(planMinutes)}
+              </button>
+            )}
+          </div>
+
+          {/* прогресс + проценты */}
+          <div className="progress-wrap">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={10}                      // важное: шаг в 10%
+              value={progress}
+              onChange={handleRangeChange}
+              onMouseUp={handleRangeMouseUp} // добиваем к ближайшим 10 при отпускании
+              onKeyDown={handleRangeKeyDown} // клавиатурные шаги по 10
+              style={{ flex: 1 }}
+            />
+            <span className="progress-percent">{progress}%</span>
+          </div>
+
+          {/* только кнопки +/-10% по требованию */}
+          <div className="pills">
+            <button className="pill" onClick={dec10}>-10%</button>
+            <button className="pill" onClick={inc10}>+10%</button>
+          </div>
+
+          {/* закрыть / вернуть */}
+          <div style={{ marginTop: 10, display: "flex", justifyContent: "flex-end" }}>
+            {!closed ? (
+              <button className="button" onClick={() => onToggleClosed(true)}>Закрыть</button>
+            ) : (
+              <button className="button" onClick={() => onToggleClosed(false)}>Вернуть</button>
             )}
           </div>
         </div>
 
-        {closed ? (
-          <>
-            <div className="task-meta">Выполнено: {progress}%</div>
-            <div className="card-actions">
-              <button className="button" onClick={()=>onToggleClosed(false)}>Возобновить</button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="task-meta">План: {fmtMinutesLong(planMinutes)} · Осталось: {fmtMinutesLong(Math.round(remaining))}</div>
-            <div className="progress-wrap">
-              <input type="range" min={0} max={100} value={progress} onChange={e=>onChangeProgress(Number(e.target.value))} style={{flex:1}} />
-              <span className="progress-percent">{progress}%</span>
-            </div>
-            <div className="pills">
-              <button className="pill" onClick={()=>onChangeProgress(Math.max(0,progress-10))}>-10%</button>
-              <button className="pill" onClick={()=>onChangeProgress(Math.min(100,progress+10))}>+10%</button>
-            </div>
-            <div className="card-actions">
-              <button className="button" onClick={()=>onToggleClosed(true)}>Закрыть</button>
-            </div>
-          </>
-        )}
+        {/* правый бейдж (дата/«через N д.») */}
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+          {rightBadge}
+        </div>
       </div>
     </div>
   );

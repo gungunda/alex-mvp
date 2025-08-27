@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { WeekTemplate, ProgressByDate, OverridesByDate } from './types';
-import { uuid } from './utils';
+import { uuid, toDateKey } from './utils';
 import LS, { loadJSON, saveJSON } from './storage';
 import Dashboard from './pages/Dashboard';
 import Templates from './pages/Templates';
@@ -19,6 +19,9 @@ export default function App(){
   const [page, setPage] = useState<'dashboard'|'templates'>(() => loadJSON(LS.UI,{page:'dashboard' as const}).page);
   useEffect(()=>saveJSON(LS.UI,{page}),[page]);
 
+  // <<<<< ВЕРНУЛИ ГЛОБАЛЬНОЕ УПРАВЛЕНИЕ ДАТОЙ ДЛЯ НАВБАРА >>>>>
+  const [dateKey, setDateKey] = useState<string>(() => toDateKey(new Date()));
+
   const [weekTemplate, setWeekTemplate] = useState<WeekTemplate>(()=>loadJSON(LS.WEEK, seedWeek));
   const [overrides, setOverrides] = useState<OverridesByDate>(()=>loadJSON(LS.OVERRIDES, {}));
   const [progressByDate, setProgressByDate] = useState<ProgressByDate>(()=>loadJSON(LS.PROGRESS, {}));
@@ -34,7 +37,16 @@ export default function App(){
           <button className="tab" aria-current={page==='dashboard'?'page':undefined} onClick={()=>setPage('dashboard')}>Dashboard</button>
           <button className="tab" aria-current={page==='templates'?'page':undefined} onClick={()=>setPage('templates')}>Правка расписания</button>
         </div>
-        <div className="header-actions"></div>
+        <div className="header-actions">
+          {/* ВЫБОР ДАТЫ + КНОПКА «СЕГОДНЯ» */}
+          <input
+            className="input"
+            type="date"
+            value={dateKey}
+            onChange={e=>setDateKey((e.target as HTMLInputElement).value)}
+          />
+          <button className="button ghost" onClick={()=>setDateKey(toDateKey(new Date()))}>Сегодня</button>
+        </div>
       </div>
     </div>
   );
@@ -43,9 +55,16 @@ export default function App(){
     <div>
       {Nav}
       {page==='dashboard' && (
-        <Dashboard weekTemplate={weekTemplate} overrides={overrides}
-          progressByDate={progressByDate} startedAtByDate={startedAtByDate}
-          setOverrides={setOverrides} setProgressByDate={setProgressByDate} setStartedAtByDate={setStartedAtByDate} />
+        <Dashboard
+          weekTemplate={weekTemplate}
+          overrides={overrides}
+          progressByDate={progressByDate}
+          startedAtByDate={startedAtByDate}
+          setOverrides={setOverrides}
+          setProgressByDate={setProgressByDate}
+          setStartedAtByDate={setStartedAtByDate}
+          dateKey={dateKey}   // <-- прокинули дату в дашборд
+        />
       )}
       {page==='templates' && (
         <Templates weekTemplate={weekTemplate} setWeekTemplate={setWeekTemplate} />
